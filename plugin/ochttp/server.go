@@ -71,6 +71,11 @@ type Handler struct {
 	// name equals the URL Path.
 	FormatSpanName func(*http.Request) string
 
+	// FormatMetricPath holds the function to use for generating the metric path
+	// from the information found in the incoming HTTP Request. By default the
+	// name equals the URL Path.
+	FormatMetricPath func(*http.Request) string
+
 	// IsHealthEndpoint holds the function to use for determining if the
 	// incoming HTTP request should be considered a health check. This is in
 	// addition to the private isHealthEndpoint func which may also indicate
@@ -147,9 +152,16 @@ func (h *Handler) extractSpanContext(r *http.Request) (trace.SpanContext, bool) 
 }
 
 func (h *Handler) startStats(w http.ResponseWriter, r *http.Request) (http.ResponseWriter, func(tags *addedTags)) {
+	var path string
+	if h.FormatMetricPath == nil {
+		path = r.URL.Path
+	} else {
+		path = h.FormatMetricPath(r)
+	}
+
 	ctx, _ := tag.New(r.Context(),
 		tag.Upsert(Host, r.Host),
-		tag.Upsert(Path, r.URL.Path),
+		tag.Upsert(Path, path),
 		tag.Upsert(Method, r.Method))
 	track := &trackingResponseWriter{
 		start:  time.Now(),
