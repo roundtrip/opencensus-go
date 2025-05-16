@@ -76,6 +76,9 @@ type Handler struct {
 	// name equals the URL Path.
 	FormatMetricPath func(*http.Request) string
 
+	// SkipMetrics controls whether this handler can opt out of capturing metrics.
+	SkipMetrics bool
+
 	// IsHealthEndpoint holds the function to use for determining if the
 	// incoming HTTP request should be considered a health check. This is in
 	// addition to the private isHealthEndpoint func which may also indicate
@@ -87,7 +90,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var tags addedTags
 	r, traceEnd := h.startTrace(w, r)
 	defer traceEnd()
-	w, statsEnd := h.startStats(w, r)
+	w, statsEnd := h.startStats(w, r, !h.SkipMetrics)
 	defer statsEnd(&tags)
 	handler := h.Handler
 	if handler == nil {
@@ -151,7 +154,7 @@ func (h *Handler) extractSpanContext(r *http.Request) (trace.SpanContext, bool) 
 	return h.Propagation.SpanContextFromRequest(r)
 }
 
-func (h *Handler) startStats(w http.ResponseWriter, r *http.Request) (http.ResponseWriter, func(tags *addedTags)) {
+func (h *Handler) startStats(w http.ResponseWriter, r *http.Request, record bool) (http.ResponseWriter, func(tags *addedTags)) {
 	var path string
 	if h.FormatMetricPath == nil {
 		path = r.URL.Path
@@ -167,6 +170,7 @@ func (h *Handler) startStats(w http.ResponseWriter, r *http.Request) (http.Respo
 		start:  time.Now(),
 		ctx:    ctx,
 		writer: w,
+		record: record,
 	}
 	if r.Body == nil {
 		// TODO: Handle cases where ContentLength is not set.
@@ -174,7 +178,9 @@ func (h *Handler) startStats(w http.ResponseWriter, r *http.Request) (http.Respo
 	} else if r.ContentLength > 0 {
 		track.reqSize = r.ContentLength
 	}
-	stats.Record(ctx, ServerRequestCount.M(1))
+	if record {
+		stats.Record(ctx, ServerRequestCount.M(1))
+	}
 	return track.wrappedResponseWriter(), track.end
 }
 
@@ -187,6 +193,7 @@ type trackingResponseWriter struct {
 	statusLine string
 	endOnce    sync.Once
 	writer     http.ResponseWriter
+	record     bool
 }
 
 // Compile time assertion for ResponseWriter interface
@@ -212,7 +219,9 @@ func (t *trackingResponseWriter) end(tags *addedTags) {
 		allTags := make([]tag.Mutator, len(tags.t)+1)
 		allTags[0] = tag.Upsert(StatusCode, strconv.Itoa(t.statusCode))
 		copy(allTags[1:], tags.t)
-		stats.RecordWithTags(t.ctx, allTags, m...)
+		if t.record {
+			stats.RecordWithTags(t.ctx, allTags, m...)
+		}
 	})
 }
 
