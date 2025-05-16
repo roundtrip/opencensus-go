@@ -44,6 +44,8 @@ import (
 type Handler struct {
 	// Propagation defines how traces are propagated. If unspecified,
 	// B3 propagation will be used.
+	//
+	// The default can be changed via SetDefaultPropagationFormat.
 	Propagation propagation.HTTPFormat
 
 	// Handler is the handler used to handle the incoming request.

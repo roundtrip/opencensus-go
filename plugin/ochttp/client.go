@@ -38,6 +38,8 @@ type Transport struct {
 
 	// Propagation defines how traces are propagated. If unspecified, a default
 	// (currently B3 format) will be used.
+	//
+	// The default can be changed via SetDefaultPropagationFormat.
 	Propagation propagation.HTTPFormat
 
 	// StartOptions are applied to the span started by this Transport around each

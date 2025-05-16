@@ -28,6 +28,10 @@ import (
 
 var defaultFormat propagation.HTTPFormat = &b3.HTTPFormat{}
 
+func SetDefaultPropagationFormat(format propagation.HTTPFormat) {
+	defaultFormat = format
+}
+
 // Attributes recorded on the span for the requests.
 // Only trace exporters will need them.
 const (
