@@ -387,7 +387,7 @@ func TestSpanNameFromURL(t *testing.T) {
 			if err != nil {
 				t.Errorf("url issue = %v", err)
 			}
-			if got := spanNameFromURL(req); got != tt.want {
+			if got := spanNameFromURL(context.Background(), req); got != tt.want {
 				t.Errorf("spanNameFromURL() = %v, want %v", got, tt.want)
 			}
 		})
@@ -395,7 +395,7 @@ func TestSpanNameFromURL(t *testing.T) {
 }
 
 func TestFormatSpanName(t *testing.T) {
-	formatSpanName := func(r *http.Request) string {
+	formatSpanName := func(ctx context.Context, r *http.Request) string {
 		return r.Method + " " + r.URL.Path
 	}
 

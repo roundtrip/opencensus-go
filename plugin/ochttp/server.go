@@ -71,12 +71,12 @@ type Handler struct {
 	// FormatSpanName holds the function to use for generating the span name
 	// from the information found in the incoming HTTP Request. By default the
 	// name equals the URL Path.
-	FormatSpanName func(*http.Request) string
+	FormatSpanName func(context.Context, *http.Request) string
 
 	// FormatMetricPath holds the function to use for generating the metric path
 	// from the information found in the incoming HTTP Request. By default the
 	// name equals the URL Path.
-	FormatMetricPath func(*http.Request) string
+	FormatMetricPath func(context.Context, *http.Request) string
 
 	// SkipMetrics controls whether this handler can opt out of capturing metrics.
 	SkipMetrics bool
@@ -106,13 +106,13 @@ func (h *Handler) startTrace(w http.ResponseWriter, r *http.Request) (*http.Requ
 	if h.IsHealthEndpoint != nil && h.IsHealthEndpoint(r) || isHealthEndpoint(r.URL.Path) {
 		return r, func() {}
 	}
+	ctx := r.Context()
 	var name string
 	if h.FormatSpanName == nil {
-		name = spanNameFromURL(r)
+		name = spanNameFromURL(ctx, r)
 	} else {
-		name = h.FormatSpanName(r)
+		name = h.FormatSpanName(ctx, r)
 	}
-	ctx := r.Context()
 
 	startOpts := h.StartOptions
 	if h.GetStartOptions != nil {
@@ -157,14 +157,16 @@ func (h *Handler) extractSpanContext(r *http.Request) (trace.SpanContext, bool) 
 }
 
 func (h *Handler) startStats(w http.ResponseWriter, r *http.Request, record bool) (http.ResponseWriter, func(tags *addedTags)) {
+	ctx := r.Context()
+
 	var path string
 	if h.FormatMetricPath == nil {
 		path = r.URL.Path
 	} else {
-		path = h.FormatMetricPath(r)
+		path = h.FormatMetricPath(ctx, r)
 	}
 
-	ctx, _ := tag.New(r.Context(),
+	ctx, _ = tag.New(ctx,
 		tag.Upsert(Host, r.Host),
 		tag.Upsert(Path, path),
 		tag.Upsert(Method, r.Method))

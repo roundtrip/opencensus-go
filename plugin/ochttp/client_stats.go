@@ -16,7 +16,9 @@ package ochttp
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -28,18 +30,27 @@ import (
 
 // statsTransport is an http.RoundTripper that collects stats for the outgoing requests.
 type statsTransport struct {
-	base http.RoundTripper
+	base           http.RoundTripper
+	formatHTTPPath func(context.Context, *http.Request) string
 }
 
 // RoundTrip implements http.RoundTripper, delegating to Base and recording stats for the request.
 func (t statsTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx, _ := tag.New(req.Context(),
+	ctx := req.Context()
+	httpPath := t.formatHTTPPath(ctx, req)
+
+	ctx, tagErr := tag.New(ctx,
 		tag.Upsert(KeyClientHost, req.Host),
 		tag.Upsert(Host, req.Host),
-		tag.Upsert(KeyClientPath, req.URL.Path),
-		tag.Upsert(Path, req.URL.Path),
+		tag.Upsert(KeyClientPath, httpPath),
+		tag.Upsert(Path, httpPath),
 		tag.Upsert(KeyClientMethod, req.Method),
 		tag.Upsert(Method, req.Method))
+
+	if tagErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("ochttp: could not create stats tags: %v", tagErr))
+	}
+
 	req = req.WithContext(ctx)
 	track := &tracker{
 		start: time.Now(),

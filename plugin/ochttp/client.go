@@ -15,6 +15,7 @@
 package ochttp
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptrace"
 
@@ -56,7 +57,14 @@ type Transport struct {
 	// NameFromRequest holds the function to use for generating the span name
 	// from the information found in the outgoing HTTP Request. By default the
 	// name equals the URL Path.
-	FormatSpanName func(*http.Request) string
+	FormatSpanName func(context.Context, *http.Request) string
+
+	// FormatMetricPath holds the function to use for generating the HTTP path tag
+	// used for metrics.
+	//
+	// If nil, no metrics will be recorded to avoid generating high cardinality
+	// metrics.
+	FormatMetricPath func(context.Context, *http.Request) string
 
 	// NewClientTrace may be set to a function allowing the current *trace.Span
 	// to be annotated with HTTP request event information emitted by the
@@ -97,7 +105,12 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		formatSpanName: spanNameFormatter,
 		newClientTrace: t.NewClientTrace,
 	}
-	rt = statsTransport{base: rt}
+	if t.FormatMetricPath != nil {
+		rt = statsTransport{
+			base:           rt,
+			formatHTTPPath: t.FormatMetricPath,
+		}
+	}
 	return rt.RoundTrip(req)
 }
 

@@ -15,6 +15,7 @@
 package ochttp
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptrace"
@@ -47,7 +48,7 @@ type traceTransport struct {
 	base           http.RoundTripper
 	startOptions   trace.StartOptions
 	format         propagation.HTTPFormat
-	formatSpanName func(*http.Request) string
+	formatSpanName func(context.Context, *http.Request) string
 	newClientTrace func(*http.Request, *trace.Span) *httptrace.ClientTrace
 }
 
@@ -57,10 +58,11 @@ type traceTransport struct {
 // The created span can follow a parent span, if a parent is presented in
 // the request's context.
 func (t *traceTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	name := t.formatSpanName(req)
+	ctx := req.Context()
+	name := t.formatSpanName(ctx, req)
 	// TODO(jbd): Discuss whether we want to prefix
 	// outgoing requests with Sent.
-	ctx, span := trace.StartSpan(req.Context(), name,
+	ctx, span := trace.StartSpan(ctx, name,
 		trace.WithSampler(t.startOptions.Sampler),
 		trace.WithSpanKind(trace.SpanKindClient))
 
@@ -150,7 +152,7 @@ func (t *traceTransport) CancelRequest(req *http.Request) {
 	}
 }
 
-func spanNameFromURL(req *http.Request) string {
+func spanNameFromURL(ctx context.Context, req *http.Request) string {
 	return req.URL.Path
 }
 

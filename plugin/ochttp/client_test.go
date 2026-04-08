@@ -15,6 +15,7 @@
 package ochttp_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -60,7 +61,9 @@ func TestClientNew(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	var tr ochttp.Transport
+	tr := ochttp.Transport{
+		FormatMetricPath: func(ctx context.Context, r *http.Request) string { return r.URL.Path },
+	}
 	errs := make(chan error, reqCount)
 	wg.Add(reqCount)
 
@@ -152,7 +155,9 @@ func TestClientOld(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	var tr ochttp.Transport
+	tr := ochttp.Transport{
+		FormatMetricPath: func(ctx context.Context, r *http.Request) string { return r.URL.Path },
+	}
 	errs := make(chan error, reqCount)
 	wg.Add(reqCount)
 
