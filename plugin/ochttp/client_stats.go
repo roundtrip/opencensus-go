@@ -32,16 +32,21 @@ import (
 type statsTransport struct {
 	base           http.RoundTripper
 	formatHTTPPath func(context.Context, *http.Request) string
+	formatHTTPHost func(context.Context, *http.Request) string
 }
 
 // RoundTrip implements http.RoundTripper, delegating to Base and recording stats for the request.
 func (t statsTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	httpPath := t.formatHTTPPath(ctx, req)
+	httpHost := req.Host
+	if t.formatHTTPHost != nil {
+		httpHost = t.formatHTTPHost(ctx, req)
+	}
 
 	ctx, tagErr := tag.New(ctx,
-		tag.Upsert(KeyClientHost, req.Host),
-		tag.Upsert(Host, req.Host),
+		tag.Upsert(KeyClientHost, httpHost),
+		tag.Upsert(Host, httpHost),
 		tag.Upsert(KeyClientPath, httpPath),
 		tag.Upsert(Path, httpPath),
 		tag.Upsert(KeyClientMethod, req.Method),

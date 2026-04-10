@@ -78,6 +78,13 @@ type Handler struct {
 	// name equals the URL Path.
 	FormatMetricPath func(context.Context, *http.Request) string
 
+	// FormatMetricHost holds the function to use for generating the metric host
+	// from the information found in the incoming HTTP Request. This is useful
+	// for templatizing hostnames to avoid high cardinality metrics.
+	//
+	// If nil, the raw request host will be used.
+	FormatMetricHost func(context.Context, *http.Request) string
+
 	// SkipMetrics controls whether this handler can opt out of capturing metrics.
 	SkipMetrics bool
 
@@ -166,8 +173,13 @@ func (h *Handler) startStats(w http.ResponseWriter, r *http.Request, record bool
 		path = h.FormatMetricPath(ctx, r)
 	}
 
+	host := r.Host
+	if h.FormatMetricHost != nil {
+		host = h.FormatMetricHost(ctx, r)
+	}
+
 	ctx, _ = tag.New(ctx,
-		tag.Upsert(Host, r.Host),
+		tag.Upsert(Host, host),
 		tag.Upsert(Path, path),
 		tag.Upsert(Method, r.Method))
 	track := &trackingResponseWriter{

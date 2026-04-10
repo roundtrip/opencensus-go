@@ -26,6 +26,7 @@ import (
 
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/stats/view"
+	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 )
 
@@ -221,6 +222,59 @@ func TestClientOld(t *testing.T) {
 		if got := count; got != reqCount {
 			t.Fatalf("%s = %d; want %d", viewName, got, reqCount)
 		}
+	}
+}
+
+func TestFormatMetricHost(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		resp.Write([]byte("Hello, world!"))
+	}))
+	defer server.Close()
+
+	// Create a view that groups by host so we can verify the tag value.
+	hostView := &view.View{
+		Name:        "test/format_metric_host",
+		Measure:     ochttp.ClientRoundtripLatency,
+		Aggregation: view.Count(),
+		Description: "Test view for FormatMetricHost",
+		TagKeys:     []tag.Key{ochttp.KeyClientHost},
+	}
+	if err := view.Register(hostView); err != nil {
+		t.Fatalf("Failed to register test view: %v", err)
+	}
+	defer view.Unregister(hostView)
+
+	tr := ochttp.Transport{
+		FormatMetricPath: func(ctx context.Context, r *http.Request) string { return r.URL.Path },
+		FormatMetricHost: func(ctx context.Context, r *http.Request) string { return "templated-host" },
+	}
+
+	req, err := http.NewRequest("GET", server.URL+"/test", nil)
+	if err != nil {
+		t.Fatalf("error creating request: %v", err)
+	}
+	resp, err := tr.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("response error: %v", err)
+	}
+	resp.Body.Close()
+
+	rows, err := view.RetrieveData(hostView.Name)
+	if err != nil {
+		t.Fatalf("error retrieving data: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows; want 1", len(rows))
+	}
+
+	var gotHost string
+	for _, tagValue := range rows[0].Tags {
+		if tagValue.Key == ochttp.KeyClientHost {
+			gotHost = tagValue.Value
+		}
+	}
+	if gotHost != "templated-host" {
+		t.Errorf("host tag = %q; want %q", gotHost, "templated-host")
 	}
 }
 

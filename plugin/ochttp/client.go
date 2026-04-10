@@ -66,6 +66,13 @@ type Transport struct {
 	// metrics.
 	FormatMetricPath func(context.Context, *http.Request) string
 
+	// FormatMetricHost holds the function to use for generating the HTTP host tag
+	// used for metrics. This is useful for templatizing hostnames to avoid high
+	// cardinality metrics.
+	//
+	// If nil, the raw request host will be used.
+	FormatMetricHost func(context.Context, *http.Request) string
+
 	// NewClientTrace may be set to a function allowing the current *trace.Span
 	// to be annotated with HTTP request event information emitted by the
 	// httptrace package.
@@ -109,6 +116,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		rt = statsTransport{
 			base:           rt,
 			formatHTTPPath: t.FormatMetricPath,
+			formatHTTPHost: t.FormatMetricHost,
 		}
 	}
 	return rt.RoundTrip(req)
