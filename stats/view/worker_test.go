@@ -417,6 +417,43 @@ func TestReportUsage(t *testing.T) {
 
 }
 
+func TestFlush(t *testing.T) {
+	ctx := context.Background()
+	restart()
+	SetReportingPeriod(time.Hour)
+
+	m := stats.Int64("flush_measure", "desc", "unit")
+	v := &View{Name: "flush_count", Measure: m, Aggregation: Count()}
+	if err := Register(v); err != nil {
+		t.Fatalf("cannot register: %v", err)
+	}
+	defer Unregister(v)
+
+	e := &countExporter{}
+	RegisterExporter(e)
+	defer UnregisterExporter(e)
+
+	stats.Record(ctx, m.M(1))
+	stats.Record(ctx, m.M(1))
+	stats.Record(ctx, m.M(1))
+
+	Flush()
+
+	e.Lock()
+	got := e.count
+	e.Unlock()
+	if want := int64(3); got != want {
+		t.Errorf("got count = %v after Flush(); want %v", got, want)
+	}
+}
+
+func TestFlushAfterStop(t *testing.T) {
+	w := NewMeter()
+	w.Start()
+	w.Stop()
+	w.Flush() // Must not panic or block.
+}
+
 func Test_SetReportingPeriodReqNeverBlocks(t *testing.T) {
 	t.Parallel()
 

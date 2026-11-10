@@ -184,3 +184,14 @@ func (cmd *setReportingPeriodReq) handleCommand(w *worker) {
 	}
 	cmd.c <- true
 }
+
+// flushReq is the command to immediately report the collected data to the
+// registered exporters.
+type flushReq struct {
+	c chan struct{}
+}
+
+func (cmd *flushReq) handleCommand(w *worker) {
+	w.reportUsage()
+	close(cmd.c)
+}

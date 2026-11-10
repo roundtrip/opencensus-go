@@ -84,6 +84,13 @@ type Meter interface {
 	// duration is. For example, the Stackdriver exporter recommends a value no
 	// lower than 1 minute. Consult each exporter per your needs.
 	SetReportingPeriod(time.Duration)
+	// Flush immediately reports the collected data to the registered exporters
+	// and returns once they have been called. It includes all data recorded
+	// before Flush was called.
+	//
+	// Exporters may buffer data, so call their own flush methods afterwards,
+	// e.g. before the program exits.
+	Flush()
 
 	// RegisterExporter registers an exporter.
 	// Collected data will be reported via all the
@@ -232,6 +239,12 @@ func SetReportingPeriod(d time.Duration) {
 	defaultWorker.SetReportingPeriod(d)
 }
 
+// Flush immediately reports the data collected by the default worker to the
+// registered exporters. See Meter.Flush.
+func Flush() {
+	defaultWorker.Flush()
+}
+
 // Stop stops the default worker.
 func Stop() {
 	defaultWorker.Stop()
@@ -253,6 +266,19 @@ func (w *worker) SetReportingPeriod(d time.Duration) {
 	}
 	w.c <- req
 	<-req.c // don't return until the timer is set to the new duration.
+}
+
+// Flush immediately reports the collected data to the registered exporters.
+// It is a no-op once the worker has been stopped.
+func (w *worker) Flush() {
+	select {
+	case <-w.quit:
+		return
+	default:
+	}
+	req := &flushReq{c: make(chan struct{})}
+	w.c <- req
+	<-req.c
 }
 
 // NewMeter constructs a Meter instance. You should only need to use this if
